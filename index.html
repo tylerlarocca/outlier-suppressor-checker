@@ -12,6 +12,10 @@
   <!-- Ecwid store script — loads Cart API so Add to Cart works on this standalone page -->
   <script data-cfasync="false" type="text/javascript" src="https://app.ecwid.com/script.js?63365710&data_platform=code" charset="utf-8"></script>
   <style>
+    /* Hidden Ecwid store widget — required to initialize the Cart API */
+    #ecwid-hidden-store { position: fixed; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden; pointer-events: none; }
+  </style>
+  <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: #0d0d0d;
@@ -27,6 +31,10 @@
   </style>
 </head>
 <body>
+  <!-- Hidden Ecwid store widget — initializes Cart API without rendering anything visible -->
+  <div id="ecwid-hidden-store"></div>
+  <script type="text/javascript">xProductBrowser("id=ecwid-hidden-store");</script>
+
   <div id="root"></div>
 
   <script type="text/babel">
@@ -364,7 +372,7 @@
 
     // ─── CART BUTTON ─────────────────────────────────────────────────────────
     function CartButton({ url, label, fullWidth }) {
-      const [cartState, setCartState] = useState("idle");
+      const [cartState, setCartState] = useState("idle"); // idle | adding | added
 
       const handleClick = () => {
         setCartState("adding");
@@ -601,6 +609,7 @@
       const recs   = sel ? getRecommendations(sel, platform, make) : null;
       const showChassis = platform === "bolt" && step === 4 && recs;
 
+      // Collect all purchasable URLs for "Add All to Cart"
       const allCartUrls = recs
         ? recs.filter(r => !r.comingSoon).map(r => r.url)
         : [];
@@ -667,7 +676,7 @@
             </div>
           </div>
 
-          {/* ── STEP 1 ── */}
+          {/* ── STEP 1: FIREARM TYPE ── */}
           {step === 1 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -681,7 +690,7 @@
             </div>
           )}
 
-          {/* ── STEP 2 ── */}
+          {/* ── STEP 2: MAKE ── */}
           {step === 2 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -696,7 +705,7 @@
             </div>
           )}
 
-          {/* ── STEP 3 ── */}
+          {/* ── STEP 3: MODEL ── */}
           {step === 3 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -716,6 +725,7 @@
           {/* ── STEP 4: RESULTS ── */}
           {step === 4 && sel && (
             <div>
+              {/* Compatibility Badge */}
               <div style={{
                 background: recs ? "#0e1f0e" : "#1f0e0e",
                 border: `1.5px solid ${recs ? "#1a4a1a" : "#4a1a1a"}`,
@@ -741,8 +751,10 @@
                 </div>
               </div>
 
+              {/* Product Recommendations */}
               {recs && recs.length > 0 && (
                 <div>
+                  {/* Add All to Cart */}
                   {allCartUrls.length > 1 && (
                     <div style={{ marginBottom: 14 }}>
                       <AddAllButton urls={allCartUrls} />
@@ -751,6 +763,7 @@
                       </div>
                     </div>
                   )}
+
                   <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
                     {recs.length > 1 ? "Your Options" : "Recommended"}
                   </div>
@@ -760,6 +773,7 @@
                 </div>
               )}
 
+              {/* Platform Upgrades (bolt guns only) */}
               {showChassis && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
@@ -771,6 +785,7 @@
                 </div>
               )}
 
+              {/* Contact CTA */}
               <div style={{ marginTop: 16, padding: "13px 16px", background: "#141414", borderRadius: 12, border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 12, color: C.sub, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                   <span>Don't see your rifle or need help?</span>
