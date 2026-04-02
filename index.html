@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Backdraft Suppressor Compatibility Checker | Outlier USA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d0d;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px;
+      font-family: 'Montserrat', 'system-ui', 'Segoe UI', sans-serif;
+    }
+    #root { width: 100%; max-width: 660px; }
+    * { font-family: 'Montserrat', 'system-ui', 'Segoe UI', sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const STORE = "https://getoutlier.com/products";
+    const LOGO_URL = "https://d2gt4h1eeousrn.cloudfront.net/63365710/header-JbvkQu/5yX3uku-200x200.webp";
+
+    // ─── COLORS ──────────────────────────────────────────────────────────────
+    const C = {
+      bg:       "#0f0f0f",
+      card:     "#181818",
+      card2:    "#222222",
+      border:   "#2d2d2d",
+      accent:   "#cc0000",
+      accentHv: "#aa0000",
+      green:    "#22c55e",
+      red:      "#ef4444",
+      amber:    "#f59e0b",
+      blue:     "#3b82f6",
+      text:     "#f5f5f5",
+      sub:      "#a3a3a3",
+      muted:    "#6b6b6b",
+    };
+
+    // ─── ECWID CART HELPER ────────────────────────────────────────────────────
+    // Parses the Ecwid product ID from a store URL (e.g. ...product-name-p754116104)
+    function getEcwidId(url) {
+      const m = url.match(/-p(\d+)$/);
+      return m ? parseInt(m[1]) : null;
+    }
+
+    // Adds a product to the Ecwid cart if the API is available, otherwise opens product page
+    function addToCart(url, qty, callback) {
+      const id = getEcwidId(url);
+      if (id && window.Ecwid && window.Ecwid.Cart && window.Ecwid.Cart.addProduct) {
+        Ecwid.Cart.addProduct({
+          id,
+          quantity: qty || 1,
+          callback: function(success) {
+            if (callback) callback(success);
+          }
+        });
+      } else {
+        // Fallback: open product page in new tab
+        window.open(url, '_blank');
+        if (callback) callback(true);
+      }
+    }
+
+    // ─── PLATFORM / RIFLE DATABASE ────────────────────────────────────────────
+    const PLATFORMS = {
+      bolt: {
+        label: "Bolt Action Rifle",
+        makes: {
+          "Remington": { models: [
+            { label: "700 (.243 Win)",       caliber: ".243",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "700 (6.5 Creedmoor)",  caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "700 (7mm Rem Mag)",    caliber: "7mm",   thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "700 (.308 Win)",       caliber: ".308",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "783 (.308 Win)",       caliber: ".308",  thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+            { label: "783 (6.5 Creedmoor)",  caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "Tikka": { models: [
+            { label: "T3/T3x (.243 Win)",    caliber: ".243",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "T3/T3x (6.5 CM)",      caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "T3/T3x (.308 Win)",    caliber: ".308",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "T3/T3x (7mm-08)",      caliber: "7mm",   thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "Ruger": { models: [
+            { label: "American (.308 Win)",  caliber: ".308",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "American (6.5 CM)",    caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "American (.243 Win)",  caliber: ".243",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "Precision Rifle (6.5 CM)", caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+            { label: "Precision Rifle (.308)",   caliber: ".308",  thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "Savage": { models: [
+            { label: "110 (.308 Win)",       caliber: ".308",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "110 (6.5 Creedmoor)",  caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "110 (.243 Win)",       caliber: ".243",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "Axis (.308 Win)",      caliber: ".308",  thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+            { label: "Axis (6.5 Creedmoor)", caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "Howa": { models: [
+            { label: "1500 (.308 Win)",      caliber: ".308",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "1500 (6.5 Creedmoor)", caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "1500 (.243 Win)",      caliber: ".243",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+          ]},
+          "Mossberg": { models: [
+            { label: "Patriot (.308 Win)",   caliber: ".308",  thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+            { label: "Patriot (6.5 CM)",     caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: true,  hubCompatible: true },
+          ]},
+          "Winchester": { models: [
+            { label: "Model 70 (.308 Win)",  caliber: ".308",  thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+            { label: "Model 70 (6.5 CM)",    caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "Bergara": { models: [
+            { label: "B14 (.308 Win)",       caliber: ".308",  thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+            { label: "B14 (6.5 Creedmoor)",  caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+            { label: "B14 (.243 Win)",       caliber: ".243",  thread: "5/8x24", backdraftBarrel: false, hubCompatible: true },
+          ]},
+        }
+      },
+      ar: {
+        label: "AR Platform",
+        makes: {
+          "AR-10 / LR-308": { models: [
+            { label: ".308 Win (5/8x24)",    caliber: ".308",  thread: "5/8x24", backdraftBarrel: false, arPreFit: "ar10", hubCompatible: true },
+            { label: "6.5 Creedmoor (5/8x24)", caliber: "6.5mm", thread: "5/8x24", backdraftBarrel: false, arPreFit: "ar10", hubCompatible: true },
+            { label: ".243 Win (5/8x24)",    caliber: ".243",  thread: "5/8x24", backdraftBarrel: false, arPreFit: "ar10", hubCompatible: true },
+          ]},
+          "AR-15": { models: [
+            { label: ".300 BLK (5/8x24)",    caliber: ".300 BLK",  thread: "5/8x24", backdraftBarrel: false, arPreFit: "ar15", hubCompatible: true },
+            { label: ".308 / .243 Win (5/8x24)", caliber: ".308",  thread: "5/8x24", backdraftBarrel: false, arPreFit: "ar15", hubCompatible: true },
+          ]},
+          "AR-9 (9mm)": { models: [
+            { label: "9mm (1/2x28)",         caliber: "9mm",   thread: "1/2x28", backdraftBarrel: false, arPreFit: "ar9", hubCompatible: true },
+          ]},
+        }
+      },
+      pistol: {
+        label: "Pistol / PCC",
+        makes: {
+          "Glock": { models: [
+            { label: "G17/G34 (9mm)", caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+            { label: "G19 (9mm)",     caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+            { label: "G26 (9mm)",     caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "Sig Sauer": { models: [
+            { label: "P320 (9mm)", caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+            { label: "P226 (9mm)", caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+            { label: "MPX (9mm)",  caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "S&W M&P": { models: [
+            { label: "M&P 9mm (full size)", caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+            { label: "M&P9 Shield",         caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "CZ": { models: [
+            { label: "Scorpion EVO (9mm)", caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+            { label: "P-10C (9mm)",        caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+          ]},
+          "HK": { models: [
+            { label: "USP (9mm)", caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+            { label: "VP9 (9mm)", caliber: "9mm", thread: "1/2x28", backdraftBarrel: false, hubCompatible: true },
+          ]},
+        }
+      }
+    };
+
+    // ─── PRODUCT RECOMMENDATION ENGINE ───────────────────────────────────────
+    function getRecommendations(model, platform, make) {
+      const isCompatible = model.hubCompatible || model.backdraftBarrel || model.arPreFit;
+      if (!isCompatible) return null;
+
+      const recs = [];
+
+      // 1. BACKDRAFT CARBON FIBER BARREL (bolt action)
+      if (model.backdraftBarrel && platform === "bolt") {
+        const cfMap = {
+          ".243":  { name: ".243/6mm Backdraft Carbon Fiber Barrel",   url: `${STORE}/243-6mm-Backdraft-Carbon-Fiber-Barrel-1-20-OD-p754116104` },
+          "6.5mm": { name: ".264/6.5mm Backdraft Carbon Fiber Barrel", url: `${STORE}/264-6-5mm-Backdraft-Carbon-Fiber-Barrel-1-20-OD-p754131002` },
+          "7mm":   { name: ".284/7mm Backdraft Carbon Fiber Barrel",   url: `${STORE}/284-7mm-Backdraft-Carbon-Fiber-Barrel-1-20-OD-p754123215` },
+          ".308":  { name: ".308/7.62mm Backdraft Carbon Fiber Barrel",url: `${STORE}/308-7-62mm-Backdraft-Carbon-Fiber-Barrel-1-20-OD-p754128879` },
+        };
+        const cf = cfMap[model.caliber];
+        if (cf) recs.push({
+          type: "backdraft",
+          tag: "Best System",
+          tagColor: C.accent,
+          tagBg: "#2a0000",
+          name: cf.name,
+          desc: "Carbon fiber barrel with a built-in Backdraft suppressor interface. Pair with the HUB Thread Adapter below to run the full Backdraft suppressor system.",
+          price: "$499.99",
+          url: cf.url,
+          cta: "Shop Backdraft Barrel →",
+        });
+      }
+
+      // 2. PRECISION MATCH STAINLESS BARREL (bolt action)
+      if (platform === "bolt") {
+        const ssMap = {
+          ".243":  { name: ".243/6mm Precision Match Barrel",   url: `${STORE}/243-6mm-Precision-Match-Barrel-1-20-OD-p707466012` },
+          "6.5mm": { name: ".264/6.5mm Precision Match Barrel", url: `${STORE}/264-6-5mm-Precision-Match-Barrel-1-20-OD-p754381251` },
+          "7mm":   { name: ".284/7mm Precision Match Barrel",   url: `${STORE}/284-7mm-Precision-Match-Barrel-1-20-OD-p707464518` },
+          ".308":  { name: ".308/7.62mm Precision Match Barrel",url: `${STORE}/308-7-62mm-Precision-Match-Barrel-1-20-OD-p707462503` },
+        };
+        const ss = ssMap[model.caliber];
+        if (ss) recs.push({
+          type: "stainless",
+          tag: "Precision Match",
+          tagColor: C.blue,
+          tagBg: "#0c1a2e",
+          name: ss.name,
+          desc: "416R stainless steel precision match barrel, threaded 5/8×24. Pairs with the HUB adapter for suppressor use. Fits the Outlier Modular Chassis.",
+          price: "$249.99",
+          url: ss.url,
+          cta: "Shop Stainless Barrel →",
+        });
+      }
+
+      // 3. AR PRE-FIT BARRELS & UPPERS
+      if (model.arPreFit) {
+        if (model.arPreFit === "ar9") {
+          recs.push({
+            type: "ar-prefit",
+            tag: "Pre-Fit Barrel",
+            tagColor: C.amber,
+            tagBg: "#251a00",
+            name: "Pre-Fit BackDraft AR-9 Barrel",
+            desc: "Drop-in Backdraft barrel for AR-9 platforms. Pre-chambered 9mm with built-in suppressor hub — pair with the HUB thread adapter to complete the system.",
+            price: "$399.99",
+            url: `${STORE}/Pre-Fit-BackDraft-AR-9-Barrel-p751168143`,
+            cta: "Shop AR-9 Pre-Fit Barrel →",
+          });
+          recs.push({
+            type: "ar-upper",
+            tag: "Complete Upper",
+            tagColor: C.green,
+            tagBg: "#0a2010",
+            name: "BackDraft AR-9 Complete Upper",
+            desc: "Fully assembled AR-9 upper with Backdraft barrel pre-installed. Plug in, pin on, and run quiet immediately.",
+            price: "$599.99",
+            url: `${STORE}/BackDraft-AR-9-Complete-Upper-p747230777`,
+            cta: "Shop Complete AR-9 Upper →",
+          });
+        } else if (model.arPreFit === "ar10") {
+          recs.push({
+            type: "ar-prefit",
+            tag: "Pre-Fit Barrel — Coming Soon",
+            tagColor: C.amber,
+            tagBg: "#251a00",
+            name: "Pre-Fit BackDraft AR-10 Barrel",
+            desc: "The Backdraft system for AR-10/LR-308 platforms. Pre-fit with built-in suppressor hub — coming soon.",
+            price: "$699.99",
+            url: `${STORE}/Pre-Fit-BackDraft-AR-10-Barrel-p751166596`,
+            cta: "View AR-10 Pre-Fit Barrel →",
+            comingSoon: true,
+          });
+        } else if (model.arPreFit === "ar15") {
+          recs.push({
+            type: "ar-prefit",
+            tag: "Pre-Fit Barrel",
+            tagColor: C.amber,
+            tagBg: "#251a00",
+            name: "Pre-Fit BackDraft AR-15 Barrel",
+            desc: "Drop-in AR-15 barrel with the full Backdraft suppressor hub built in. Direct replacement for your upper receiver.",
+            price: "$499.99",
+            url: `${STORE}/Pre-Fit-BackDraft-AR-15-Barrel-p751194588`,
+            cta: "Shop AR-15 Pre-Fit Barrel →",
+          });
+        }
+      }
+
+      // 4. HUB THREAD ADAPTER
+      if (model.hubCompatible) {
+        recs.push({
+          type: "adapter",
+          tag: "Required Adapter",
+          tagColor: "#a3a3a3",
+          tagBg: "#1f1f1f",
+          name: "HUB Thread Adapter",
+          desc: `Mounts the Backdraft suppressor directly onto your ${model.thread}-threaded barrel. Required for the full Backdraft system — installs in minutes, no gunsmith needed.`,
+          price: "$69.99",
+          url: `${STORE}/HUB-Thread-Adapter-p794812659`,
+          cta: "Add HUB Adapter to Cart →",
+        });
+      }
+
+      return recs.length ? recs : null;
+    }
+
+    // ─── ICONS ────────────────────────────────────────────────────────────────
+    const CheckIcon = () => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="11" fill="#22c55e"/>
+        <path d="M6 11.5l3.5 3.5 6.5-7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+    const XIcon = () => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="11" fill="#ef4444"/>
+        <path d="M7.5 7.5l7 7M14.5 7.5l-7 7" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    );
+    const ArrowRight = () => (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <path d="M3 7.5h9M8.5 3.5l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+    const ResetIcon = () => (
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+        <path d="M1.5 6.5A5 5 0 1 0 3 3L1 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M1 3.5V1h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+    const CartIcon = () => (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M1 1h2l1.5 7h6l1.5-5H4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="6" cy="12" r="0.8" fill="currentColor"/>
+        <circle cx="10" cy="12" r="0.8" fill="currentColor"/>
+      </svg>
+    );
+
+    // ─── STEP DOT ─────────────────────────────────────────────────────────────
+    function StepDot({ n, active, done }) {
+      return (
+        <div style={{
+          width: 28, height: 28, borderRadius: "50%",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, fontWeight: 800, letterSpacing: "0",
+          background: done ? C.green : active ? C.accent : "#2a2a2a",
+          color: (done || active) ? "#fff" : C.muted,
+          flexShrink: 0,
+          transition: "all 0.2s",
+        }}>
+          {done ? "✓" : n}
+        </div>
+      );
+    }
+
+    // ─── CART BUTTON ─────────────────────────────────────────────────────────
+    function CartButton({ url, label, fullWidth }) {
+      const [cartState, setCartState] = useState("idle"); // idle | adding | added
+
+      const handleClick = () => {
+        setCartState("adding");
+        addToCart(url, 1, (success) => {
+          setCartState(success ? "added" : "idle");
+          if (success) setTimeout(() => setCartState("idle"), 2200);
+        });
+      };
+
+      const bg = cartState === "added" ? "#15803d" : cartState === "adding" ? "#7f1d1d" : C.accent;
+
+      return (
+        <button onClick={handleClick} style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+          background: bg,
+          color: "white", borderRadius: 10, padding: "12px 20px",
+          border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer",
+          width: fullWidth ? "100%" : "auto",
+          letterSpacing: "0.02em",
+          transition: "background 0.2s",
+        }}>
+          {cartState === "added" ? (
+            <><span>✓</span> Added to Cart</>
+          ) : cartState === "adding" ? (
+            <>Adding…</>
+          ) : (
+            <><CartIcon /> {label || "Add to Cart"}</>
+          )}
+        </button>
+      );
+    }
+
+    // ─── ADD ALL TO CART BUTTON ───────────────────────────────────────────────
+    function AddAllButton({ urls }) {
+      const [cartState, setCartState] = useState("idle");
+
+      const handleAddAll = () => {
+        if (!urls || urls.length === 0) return;
+        setCartState("adding");
+        let completed = 0;
+        urls.forEach(url => {
+          addToCart(url, 1, () => {
+            completed++;
+            if (completed === urls.length) {
+              setCartState("added");
+              setTimeout(() => setCartState("idle"), 2500);
+            }
+          });
+        });
+      };
+
+      const bg = cartState === "added" ? "#15803d" : cartState === "adding" ? "#7f1d1d" : "#1a1a1a";
+      const border = cartState === "added" ? "#15803d" : cartState === "adding" ? "#7f1d1d" : C.accent;
+
+      return (
+        <button onClick={handleAddAll} style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          background: bg,
+          border: `1.5px solid ${border}`,
+          color: cartState === "added" ? "white" : C.accent,
+          borderRadius: 12, padding: "14px 20px",
+          fontWeight: 800, fontSize: 13, cursor: "pointer",
+          width: "100%", letterSpacing: "0.02em",
+          transition: "all 0.2s",
+          marginBottom: 4,
+        }}>
+          {cartState === "added" ? (
+            <>✓ All Items Added to Cart</>
+          ) : cartState === "adding" ? (
+            <>Adding Items…</>
+          ) : (
+            <><CartIcon /> Add All Items to Cart</>
+          )}
+        </button>
+      );
+    }
+
+    // ─── PRODUCT CARD ─────────────────────────────────────────────────────────
+    function ProductCard({ rec }) {
+      return (
+        <div style={{
+          background: C.card2, border: `1px solid ${C.border}`,
+          borderRadius: 14, padding: "18px 20px",
+          display: "flex", flexDirection: "column", gap: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+              color: rec.tagColor, background: rec.tagBg,
+              padding: "3px 9px", borderRadius: 5,
+              display: "flex", alignItems: "center", gap: 5,
+            }}>
+              {rec.comingSoon && <span style={{ opacity: 0.7 }}>⏳ </span>}
+              {rec.tag}
+            </span>
+            <span style={{ fontSize: 18, fontWeight: 900, color: C.text }}>{rec.price}</span>
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: C.text, marginBottom: 5, lineHeight: 1.3 }}>{rec.name}</div>
+            <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.6 }}>{rec.desc}</div>
+          </div>
+          {rec.comingSoon ? (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "#1f1f1f", color: C.muted, borderRadius: 10,
+              padding: "12px 20px", fontSize: 13, fontWeight: 700,
+            }}>
+              Notify Me When Available
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <CartButton url={rec.url} label="Add to Cart" fullWidth={true} />
+              <a href={rec.url} target="_blank" rel="noopener noreferrer"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  color: C.sub, fontSize: 12, fontWeight: 600,
+                  textDecoration: "none", padding: "4px 0",
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = C.text}
+                onMouseLeave={e => e.currentTarget.style.color = C.sub}>
+                View Product Details →
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ─── UPSELL CARD ─────────────────────────────────────────────────────────
+    function UpsellCard({ tag, tagColor, tagBg, name, price, desc, url, cta, borderColor }) {
+      return (
+        <div style={{
+          background: C.card2, border: `1px solid ${C.border}`,
+          borderRadius: 14, padding: "18px 20px",
+          display: "flex", flexDirection: "column", gap: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: tagColor, background: tagBg, padding: "3px 9px", borderRadius: 5 }}>
+              {tag}
+            </span>
+            <span style={{ fontSize: 18, fontWeight: 900, color: C.text }}>{price}</span>
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: C.text, marginBottom: 5 }}>{name}</div>
+            <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.6 }}>{desc}</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <CartButton url={url} label="Add to Cart" fullWidth={true} />
+            <a href={url} target="_blank" rel="noopener noreferrer"
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                color: C.sub, fontSize: 12, fontWeight: 600,
+                textDecoration: "none", padding: "4px 0",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = C.text}
+              onMouseLeave={e => e.currentTarget.style.color = C.sub}>
+              View Product Details →
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    const UPSELLS = [
+      {
+        tag: "Modular Chassis",
+        tagColor: "#a78bfa", tagBg: "#1a1130", borderColor: "#4c1d95",
+        name: "Outlier Modular Chassis",
+        price: "$199.99",
+        desc: "Precision aluminum chassis for Remington 700 pattern actions. Works with all Outlier barrels and accepts AR grips and stocks.",
+        url: `${STORE}/Modular-Chassis-p707280506`,
+        cta: "Shop Modular Chassis →",
+      },
+      {
+        tag: "Chassis Grip",
+        tagColor: "#34d399", tagBg: "#052e1c", borderColor: "#065f46",
+        name: "Gen2 Chassis Grip",
+        price: "$34.99",
+        desc: "Ergonomic Gen2 pistol grip designed for the Outlier Modular Chassis. Improved angle and texture for a solid, comfortable hold.",
+        url: `${STORE}/Gen2-Chassis-Grip-p754184263`,
+        cta: "Shop Gen2 Grip →",
+      },
+      {
+        tag: "Muzzle Brake",
+        tagColor: "#fb923c", tagBg: "#1c0f00", borderColor: "#7c2d12",
+        name: "RiZero Timed Muzzle Brake",
+        price: "$119.99",
+        desc: "Precision-timed muzzle brake for 5/8×24 threaded barrels. Dramatically reduces felt recoil and muzzle rise for faster follow-up shots.",
+        url: `${STORE}/RiZero-Timed-Muzzle-Brake-p606954058`,
+        cta: "Shop RiZero Muzzle Brake →",
+      },
+    ];
+
+    // ─── OPTION BUTTON ────────────────────────────────────────────────────────
+    function OptionBtn({ label, badge, onClick }) {
+      const [hov, setHov] = useState(false);
+      return (
+        <button onClick={onClick}
+          style={{
+            background: hov ? "#1f1f1f" : C.card, border: `1.5px solid ${hov ? C.accent : C.border}`,
+            borderRadius: 12, padding: "14px 18px",
+            color: C.text, cursor: "pointer",
+            textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 13, fontWeight: 600, width: "100%",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={() => setHov(true)}
+          onMouseLeave={() => setHov(false)}>
+          <span>{label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {badge && (
+              <span style={{ fontSize: 10, color: C.muted, background: "#2a2a2a", padding: "2px 7px", borderRadius: 5, fontWeight: 700 }}>
+                {badge}
+              </span>
+            )}
+            <ArrowRight />
+          </div>
+        </button>
+      );
+    }
+
+    // ─── MAIN COMPONENT ───────────────────────────────────────────────────────
+    function CompatibilityChecker() {
+      const [platform, setPlatform] = useState(null);
+      const [make, setMake]         = useState(null);
+      const [model, setModel]       = useState(null);
+
+      const step   = !platform ? 1 : !make ? 2 : model === null ? 3 : 4;
+      const makes  = platform ? Object.keys(PLATFORMS[platform].makes) : [];
+      const models = (platform && make) ? PLATFORMS[platform].makes[make]?.models : [];
+      const sel    = (platform && make && model !== null) ? models[model] : null;
+      const recs   = sel ? getRecommendations(sel, platform, make) : null;
+      const showChassis = platform === "bolt" && step === 4 && recs;
+
+      // Collect all purchasable URLs for "Add All to Cart"
+      const allCartUrls = recs
+        ? recs.filter(r => !r.comingSoon).map(r => r.url)
+        : [];
+
+      const reset = () => { setPlatform(null); setMake(null); setModel(null); };
+
+      return (
+        <div style={{
+          fontFamily: "'Montserrat', system-ui, sans-serif",
+          background: C.card,
+          color: C.text,
+          borderRadius: 18,
+          padding: "28px 24px",
+          maxWidth: 660,
+          margin: "0 auto",
+          boxSizing: "border-box",
+          border: `1px solid ${C.border}`,
+        }}>
+
+          {/* ── HEADER ── */}
+          <div style={{ marginBottom: 26 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ background: "#000", borderRadius: 10, width: 58, height: 58, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                  <img src={LOGO_URL} alt="Outlier USA" style={{ width: 58, height: 58, objectFit: "contain", filter: "invert(1)" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: "-0.3px", lineHeight: 1.1 }}>
+                    Backdraft Compatibility Checker
+                  </div>
+                  <div style={{ fontSize: 11, color: C.sub, marginTop: 3, fontWeight: 500 }}>
+                    OUTLIER USA · Build Your Perfect Rifle
+                  </div>
+                </div>
+              </div>
+              {step > 1 && (
+                <button onClick={reset} style={{
+                  background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8,
+                  color: C.muted, cursor: "pointer", padding: "6px 12px", fontSize: 11, fontWeight: 700,
+                  display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
+                }}>
+                  <ResetIcon /> Start Over
+                </button>
+              )}
+            </div>
+
+            {/* Progress */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 18 }}>
+              {[1,2,3].map((n, i) => (
+                <div key={n} style={{ display: "flex", alignItems: "center", gap: 6, flex: i < 2 ? 1 : 0 }}>
+                  <StepDot n={n} active={step === n} done={step > n} />
+                  {i < 2 && (
+                    <div style={{
+                      flex: 1, height: 2, borderRadius: 1,
+                      background: step > n + 1 ? C.green : step > n ? C.accent : "#2a2a2a",
+                      transition: "all 0.3s",
+                    }} />
+                  )}
+                </div>
+              ))}
+              <div style={{ fontSize: 11, color: C.muted, marginLeft: 8, fontWeight: 600, whiteSpace: "nowrap" }}>
+                {step === 1 ? "Select firearm type" : step === 2 ? "Select make" : step === 3 ? "Select model" : "Your results"}
+              </div>
+            </div>
+          </div>
+
+          {/* ── STEP 1: FIREARM TYPE ── */}
+          {step === 1 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                What type of firearm?
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {Object.entries(PLATFORMS).map(([key, val]) => (
+                  <OptionBtn key={key} label={val.label} onClick={() => setPlatform(key)} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 2: MAKE ── */}
+          {step === 2 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Select your make / brand
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {makes.map(m => <OptionBtn key={m} label={m} onClick={() => setMake(m)} />)}
+              </div>
+              <button onClick={() => setPlatform(null)} style={{ marginTop: 14, background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                ← Back
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 3: MODEL ── */}
+          {step === 3 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Select your model
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {models.map((m, i) => (
+                  <OptionBtn key={i} label={m.label} badge={m.thread} onClick={() => setModel(i)} />
+                ))}
+              </div>
+              <button onClick={() => setMake(null)} style={{ marginTop: 14, background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                ← Back
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 4: RESULTS ── */}
+          {step === 4 && sel && (
+            <div>
+              {/* Compatibility Badge */}
+              <div style={{
+                background: recs ? "#0e1f0e" : "#1f0e0e",
+                border: `1.5px solid ${recs ? "#1a4a1a" : "#4a1a1a"}`,
+                borderRadius: 12, padding: "14px 16px", marginBottom: 22,
+                display: "flex", alignItems: "flex-start", gap: 10,
+              }}>
+                <div style={{ marginTop: 1 }}>
+                  {recs ? <CheckIcon /> : <XIcon />}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: recs ? "#4ade80" : "#f87171" }}>
+                    {recs ? "Compatible with the Backdraft System" : "Not Currently Supported"}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.sub, marginTop: 3, lineHeight: 1.5 }}>
+                    <strong style={{ color: C.text }}>{make} {sel.label}</strong>
+                    {" · "}<span style={{ color: C.muted }}>{sel.thread} muzzle thread</span>
+                    {sel.note && (
+                      <span style={{ display: "block", marginTop: 5, color: "#f59e0b", fontWeight: 600 }}>
+                        ⚠ {sel.note}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Recommendations */}
+              {recs && recs.length > 0 && (
+                <div>
+                  {/* Add All to Cart */}
+                  {allCartUrls.length > 1 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <AddAllButton urls={allCartUrls} />
+                      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", fontWeight: 600 }}>
+                        Adds all {allCartUrls.length} recommended items to your cart at once
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                    {recs.length > 1 ? "Your Options" : "Recommended"}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {recs.map((rec, i) => <ProductCard key={i} rec={rec} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Platform Upgrades (bolt guns only) */}
+              {showChassis && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                    Upgrade Your Platform
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {UPSELLS.map((u, i) => <UpsellCard key={i} {...u} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Contact CTA */}
+              <div style={{ marginTop: 16, padding: "13px 16px", background: "#141414", borderRadius: 12, border: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 12, color: C.sub, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                  <span>Don't see your rifle or need help?</span>
+                  <a href="https://getoutlier.com/contacts/" style={{ color: C.accent, fontWeight: 700, fontSize: 12, textDecoration: "none" }}>
+                    Contact Outlier USA →
+                  </a>
+                </div>
+              </div>
+
+              <button onClick={reset} style={{ marginTop: 14, background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+                <ResetIcon /> Check another firearm
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<CompatibilityChecker />);
+  </script>
+</body>
+</html>
