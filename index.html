@@ -9,6 +9,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <!-- Ecwid store script — loads Cart API so Add to Cart works on this standalone page -->
+  <script data-cfasync="false" type="text/javascript" src="https://app.ecwid.com/script.js?63365710&data_platform=code" charset="utf-8"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -57,10 +59,17 @@
       return m ? parseInt(m[1]) : null;
     }
 
-    // Adds a product to the Ecwid cart if the API is available, otherwise opens product page
+    // Adds a product to the Ecwid cart.
+    // Waits for Ecwid API to be ready if it hasn't loaded yet, then falls back to opening the product page.
     function addToCart(url, qty, callback) {
       const id = getEcwidId(url);
-      if (id && window.Ecwid && window.Ecwid.Cart && window.Ecwid.Cart.addProduct) {
+      if (!id) {
+        window.open(url, '_blank');
+        if (callback) callback(true);
+        return;
+      }
+
+      function doAdd() {
         Ecwid.Cart.addProduct({
           id,
           quantity: qty || 1,
@@ -68,8 +77,16 @@
             if (callback) callback(success);
           }
         });
+      }
+
+      if (window.Ecwid && window.Ecwid.Cart && window.Ecwid.Cart.addProduct) {
+        // Ecwid already ready
+        doAdd();
+      } else if (window.Ecwid) {
+        // Ecwid loaded but API not ready yet — queue via OnAPILoaded
+        Ecwid.OnAPILoaded.add(function() { doAdd(); });
       } else {
-        // Fallback: open product page in new tab
+        // Ecwid script not present at all — open product page
         window.open(url, '_blank');
         if (callback) callback(true);
       }
@@ -347,7 +364,7 @@
 
     // ─── CART BUTTON ─────────────────────────────────────────────────────────
     function CartButton({ url, label, fullWidth }) {
-      const [cartState, setCartState] = useState("idle"); // idle | adding | added
+      const [cartState, setCartState] = useState("idle");
 
       const handleClick = () => {
         setCartState("adding");
@@ -584,7 +601,6 @@
       const recs   = sel ? getRecommendations(sel, platform, make) : null;
       const showChassis = platform === "bolt" && step === 4 && recs;
 
-      // Collect all purchasable URLs for "Add All to Cart"
       const allCartUrls = recs
         ? recs.filter(r => !r.comingSoon).map(r => r.url)
         : [];
@@ -651,7 +667,7 @@
             </div>
           </div>
 
-          {/* ── STEP 1: FIREARM TYPE ── */}
+          {/* ── STEP 1 ── */}
           {step === 1 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -665,7 +681,7 @@
             </div>
           )}
 
-          {/* ── STEP 2: MAKE ── */}
+          {/* ── STEP 2 ── */}
           {step === 2 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -680,7 +696,7 @@
             </div>
           )}
 
-          {/* ── STEP 3: MODEL ── */}
+          {/* ── STEP 3 ── */}
           {step === 3 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -700,7 +716,6 @@
           {/* ── STEP 4: RESULTS ── */}
           {step === 4 && sel && (
             <div>
-              {/* Compatibility Badge */}
               <div style={{
                 background: recs ? "#0e1f0e" : "#1f0e0e",
                 border: `1.5px solid ${recs ? "#1a4a1a" : "#4a1a1a"}`,
@@ -726,10 +741,8 @@
                 </div>
               </div>
 
-              {/* Product Recommendations */}
               {recs && recs.length > 0 && (
                 <div>
-                  {/* Add All to Cart */}
                   {allCartUrls.length > 1 && (
                     <div style={{ marginBottom: 14 }}>
                       <AddAllButton urls={allCartUrls} />
@@ -738,7 +751,6 @@
                       </div>
                     </div>
                   )}
-
                   <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
                     {recs.length > 1 ? "Your Options" : "Recommended"}
                   </div>
@@ -748,7 +760,6 @@
                 </div>
               )}
 
-              {/* Platform Upgrades (bolt guns only) */}
               {showChassis && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
@@ -760,7 +771,6 @@
                 </div>
               )}
 
-              {/* Contact CTA */}
               <div style={{ marginTop: 16, padding: "13px 16px", background: "#141414", borderRadius: 12, border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 12, color: C.sub, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                   <span>Don't see your rifle or need help?</span>
